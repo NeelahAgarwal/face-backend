@@ -61,14 +61,134 @@ const registerUser = asyncHandler(async (req,res)=>{
    )
   
    })
-
+const generateRefreshAndAccessToken= async (userId)=>{
+    try {
+      const user=await User.findById(userId)
+      const refreshToken=user.generateRefreshTokens()
+      const accessToken=user.generateAccessTokens()
+       user.refreshToken=refreshToken
+       user.save({validateBeforeSave:false})
+       return {refreshToken,accessToken}
+    } catch (error) {
+      throw new ApiError(500,"something went wrong while generating refresh and access token")
+    }
+   }
 
 const loginUser=asyncHandler(async (req,res)=>{
-
+  //get the data from req
+  //validate username or email and facedata
+  // find user
+  // validate password
+  // generate refresh and access token
+  // send cookie
   
-})
 
+
+const {username,password,email}=req.body
+if(!(username||email))
+{
+  throw new ApiError(402,"Username or Email is Required!")
+}
+const user=await User.findOne({
+  $or:[{username},{email}]
+})
+if(!user)
+{
+  throw new ApiError(400,"User does not exist!")
+}
+const isPasswordValid=user.isPasswordCorrect(password)
+if(!isPasswordValid)
+{
+  throw new ApiError(403,"Incorrect Password")
+}
+const {refreshToken,accessToken}=await generateRefreshAndAccessToken(user._id)
+const loggedInUser=await User.findById(user._id).select("-password -refreshToken")
+const options={
+  httpOnly:true,
+  secure:true,
+}
+return res
+.status(200)
+.cookie("accessToken",accessToken,options)
+.cookie("refreshToken",refreshToken,options)
+.json(
+  new ApiResponse(
+    200,
+    {
+      user:loggedInUser,
+      accessToken,
+      refreshToken
+    },
+  " User password is correct and refresh and access token have been generated!"
+  )
+)
+})
+const logoutUser=asyncHandler(async(req,res)=>{
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set:{
+        refreshToken:undefined
+      }
+    },
+    {
+      new:true
+    }
+   )
+   const options={
+    httpOnly:true,
+    secure:true,
+  }
+  return res.status(200)
+  .clearCookie("accessToken",options)
+  .clearCookie("refreshToken",options)
+  .json(
+    new ApiResponse(
+      200,
+      {},
+      "User Logged out succesfully"
+    )
+  )
+})
+const refreshTokenGenerator=asyncHandler(async(req,res)=>{
+  const incomingRefreshToken=req.cookies?.refreshToken || req.body
+  if(!incomingRefreshToken)
+  {
+    throw new ApiError(400,"No refresh token recieved")
+  }
+ const decodedToken= jwt.verify(incomingRefreshToken,process.env.REFRESH_TOKEN_SECRET_KEY)
+ const user= await User.findById(decodedToken.id)
+ if(!user)
+ {
+  throw new ApiError(400,"Unauthorized Access")
+ }
+ if(incomingRefreshToken!==user.refreshToken)
+ {
+  throw new ApiError(400,"Invalid Refresh Access Token")
+ }
+ const options={
+  httpOnly:true,
+  secure:true,
+}
+ const {newAccessToken,newRefreshToken}= await generateRefreshAndAccessToken(user._id)
+ return res.status(200)
+ .cookie("accessToken",newAccessToken,options)
+ .cookie("refreshToken",newRefreshToken,options)
+ .json(
+  new ApiResponse(
+    200,
+    {
+      newAccessToken,
+      newRefreshToken,
+    },
+    "Access token refreshed successfully!"
+  )
+ )
+ 
+})
 export {
   registerUser,
   loginUser,
+  logoutUser,
+  refreshTokenGenerator
 }

@@ -76,4 +76,9 @@ userSchema.methods.generateRefreshTokens=function(){
     expiresIn:process.env.REFRESH_TOKEN_EXPIRY
    })
 }
+userSchema.methods.isFaceDataCorrect= async function(faceData){
+  // placeholding faceData matcher logic
+  if(faceData===this.faceData) return true;
+  return false;
+}
 export const User=mongoose.model("User",userSchema);
