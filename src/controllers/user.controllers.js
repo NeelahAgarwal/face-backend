@@ -202,7 +202,7 @@ const loginUser=asyncHandler(async(req,res)=>{
    const user=await User.findOne({username});
    if(!user)
    {
-    throw new ApiError(404,"No user found") 
+    throw new ApiError(40,"No user found") 
    }
    let bestMatch = null;
   //  let bestMatchDistance = Number.MAX_VALUE;
